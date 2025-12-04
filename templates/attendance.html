@@ -1,0 +1,209 @@
+{% extends "layout.html" %}
+
+{% block title %}Attendance Kiosk - Face Attendance{% endblock %}
+
+{% block head %}
+<style>
+    .site-header {
+        padding: 0.75rem 2rem;
+    }
+
+    /* Compact attendance layout */
+    .attendance-layout {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 1.5rem;
+        height: calc(100vh - 70px);
+        padding: 1rem;
+    }
+
+    .video-section {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .video-wrapper {
+        width: 100%;
+        max-width: 640px;
+        margin: 0 auto;
+    }
+
+    .video-container {
+        width: 100%;
+        border-radius: var(--radius-lg);
+    }
+
+    .video-feed {
+        width: 100%;
+        height: auto;
+        max-height: 480px;
+        object-fit: contain;
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="attendance-layout">
+    <!-- Video Section (Smaller, centered) -->
+    <div class="video-section">
+        <div class="video-wrapper">
+            <div class="video-container">
+                <img src="/video_feed/attendance" alt="Attendance Camera Feed" class="video-feed" id="video-feed">
+                <div class="video-overlay">
+                    <div class="video-status">
+                        <span class="status-dot"></span>
+                        <span>Live Scanning</span>
+                    </div>
+                    <div class="video-status" id="stats-display">
+                        <span>Loading stats...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h3 class="sidebar-title">
+                <span>📋</span>
+                Recent Entries
+            </h3>
+        </div>
+
+        <div class="sidebar-body" id="logs-container">
+            <div class="empty-state" id="empty-state">
+                <div class="empty-icon">👀</div>
+                <p>Waiting for entries...</p>
+                <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+                    Face the camera to mark attendance
+                </p>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div id="entry-count" class="text-muted" style="font-size: 0.875rem;">
+                0 entries this session
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const logsContainer = document.getElementById('logs-container');
+    const emptyState = document.getElementById('empty-state');
+    const entryCount = document.getElementById('entry-count');
+    const statsDisplay = document.getElementById('stats-display');
+
+    let currentLogs = [];
+
+    // Fetch recent logs every 2 seconds
+    async function fetchLogs() {
+        try {
+            const response = await fetch('/api/recent_logs');
+            const data = await response.json();
+
+            if (data.success && data.logs) {
+                updateLogs(data.logs);
+            }
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+        }
+    }
+
+    function updateLogs(logs) {
+        // Check if logs have changed
+        if (JSON.stringify(logs) === JSON.stringify(currentLogs)) {
+            return;
+        }
+
+        currentLogs = logs;
+
+        if (logs.length === 0) {
+            emptyState.style.display = 'block';
+            // Keep only empty state
+            logsContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
+            entryCount.textContent = '0 entries this session';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        // Remove old entries
+        logsContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
+
+        // Add new entries
+        logs.forEach((log, index) => {
+            const entry = createLogEntry(log, index === 0 && logs.length > currentLogs.length);
+            logsContainer.insertBefore(entry, logsContainer.firstChild);
+        });
+
+        // Re-add empty state at the end (hidden)
+        logsContainer.appendChild(emptyState);
+
+        entryCount.textContent = `${logs.length} entries this session`;
+    }
+
+    function createLogEntry(log, isNew) {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${log.status === 'already_marked' ? 'already-marked' : 'success'}`;
+
+        if (isNew) {
+            entry.style.animation = 'slideIn 0.3s ease';
+        }
+
+        const icon = log.status === 'already_marked' ? '🔄' : '✓';
+        const iconClass = log.status === 'already_marked' ? 'already-marked' : 'success';
+
+        entry.innerHTML = `
+            <div class="log-icon ${iconClass}">${icon}</div>
+            <div class="log-details">
+                <div class="log-name">${escapeHtml(log.name)}</div>
+                <div class="log-time">${log.time}</div>
+            </div>
+        `;
+
+        return entry;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Fetch stats
+    async function fetchStats() {
+        try {
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+
+            if (data.success && data.stats) {
+                statsDisplay.innerHTML = `
+                    📊 ${data.stats.total_students} Students | 
+                    📅 ${data.stats.today_entries} Today
+                `;
+            }
+        } catch (error) {
+            statsDisplay.innerHTML = '<span>Stats unavailable</span>';
+        }
+    }
+
+    // Initial fetch
+    fetchLogs();
+    fetchStats();
+
+    // Poll every 2 seconds
+    setInterval(fetchLogs, 2000);
+    setInterval(fetchStats, 30000);
+
+    // Show welcome toast
+    setTimeout(() => {
+        showToast('success', 'Kiosk Active', 'Face recognition is now running. Look at the camera to mark attendance.');
+    }, 1000);
+</script>
+{% endblock %}

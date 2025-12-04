@@ -1,0 +1,404 @@
+{% extends "layout.html" %}
+
+{% block title %}Student Registration - Face Attendance{% endblock %}
+
+{% block head %}
+<style>
+    /* Registration page layout */
+    .registration-page {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 2rem;
+        max-width: 1600px;
+        margin: 0 auto;
+        align-items: start;
+    }
+
+    .main-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .video-form-layout {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .video-container {
+        min-height: 450px;
+        background: #000;
+    }
+
+    .video-feed {
+        width: 100%;
+        min-height: 450px;
+        object-fit: cover;
+    }
+
+    /* Session log styles */
+    .session-log {
+        max-height: calc(100vh - 150px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .session-log .sidebar-body {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .session-entry {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-glass);
+        border-radius: var(--radius-md);
+        margin-bottom: 0.75rem;
+        border-left: 3px solid var(--accent-green);
+        animation: slideIn 0.3s ease;
+    }
+
+    .session-entry .entry-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--accent-green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .session-entry .entry-details {
+        flex: 1;
+    }
+
+    .session-entry .entry-name {
+        font-weight: 600;
+    }
+
+    .session-entry .entry-meta {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 1200px) {
+        .registration-page {
+            grid-template-columns: 1fr;
+        }
+
+        .session-log {
+            max-height: 300px;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .video-form-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .video-container,
+        .video-feed {
+            min-height: 350px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-content" style="align-items: flex-start; padding-top: 1.5rem;">
+    <div class="container">
+        <div class="text-center mb-3">
+            <h1 class="text-gradient">Student Registration</h1>
+            <p class="text-muted mt-1">Capture face and register new students</p>
+        </div>
+
+        <div class="registration-page">
+            <!-- Main Section: Video + Form -->
+            <div class="main-section">
+                <div class="video-form-layout">
+                    <!-- Video Preview -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h3>📹 Live Camera</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="video-container">
+                                <img src="/video_feed/registration" alt="Camera Feed" class="video-feed"
+                                    id="video-feed">
+                                <div class="video-overlay">
+                                    <div class="video-status">
+                                        <span class="status-dot"></span>
+                                        <span>Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Registration Form -->
+                    <div>
+                        <div class="glass-card">
+                            <div class="card-header">
+                                <h3>📝 Student Info</h3>
+                            </div>
+                            <div class="card-body">
+                                <form id="registration-form">
+                                    <div class="form-group">
+                                        <label class="form-label" for="student_id">Student ID</label>
+                                        <input type="text" class="form-input" id="student_id" name="student_id"
+                                            placeholder="e.g., 2024001" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label" for="name">Full Name</label>
+                                        <input type="text" class="form-input" id="name" name="name"
+                                            placeholder="e.g., John Doe" required>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="submit-btn">
+                                        <span class="btn-text">📷 Capture & Register</span>
+                                        <span class="btn-loading" style="display: none;">
+                                            <span class="spinner"></span>
+                                            Processing...
+                                        </span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="glass-card mt-2">
+                            <div class="card-body" style="padding: 1rem;">
+                                <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem;">📋 Tips</h4>
+                                <ul
+                                    style="list-style: none; color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
+                                    <li>✓ One face visible</li>
+                                    <li>✓ Good lighting</li>
+                                    <li>✓ Look at camera</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Registrations Sidebar -->
+            <aside class="glass-card session-log">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-title">
+                        <span>📋</span>
+                        Recent Registrations
+                    </h3>
+                </div>
+
+                <div class="sidebar-body" id="session-log-container">
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <p>No registrations yet</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+                            Registered students will appear here
+                        </p>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div id="session-count" class="text-muted" style="font-size: 0.875rem;">
+                        0 registered students
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const form = document.getElementById('registration-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    const sessionLogContainer = document.getElementById('session-log-container');
+    const emptyState = document.getElementById('empty-state');
+    const sessionCount = document.getElementById('session-count');
+
+    // Registrations list (loaded from database)
+    let registrations = [];
+
+    // Fetch recent registrations from Firebase on page load
+    async function fetchRecentRegistrations() {
+        try {
+            const response = await fetch('/api/recent_registrations');
+            const data = await response.json();
+
+            if (data.success) {
+                registrations = data.registrations.map(reg => ({
+                    name: reg.name,
+                    studentId: reg.student_id,
+                    time: reg.registered_at
+                }));
+                renderRegistrations();
+            } else {
+                console.error('Failed to fetch registrations:', data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching registrations:', error);
+        }
+    }
+
+    function addToRegistrations(name, studentId) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Add to beginning of list
+        registrations.unshift({ name, studentId, time: timeStr });
+        renderRegistrations();
+    }
+
+    function renderRegistrations() {
+        if (registrations.length === 0) {
+            emptyState.style.display = 'block';
+            sessionCount.textContent = '0 registered students';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        // Clear existing entries
+        sessionLogContainer.querySelectorAll('.session-entry').forEach(el => el.remove());
+
+        // Add entries (show up to 20)
+        registrations.slice(0, 20).forEach(entry => {
+            const div = document.createElement('div');
+            div.className = 'session-entry';
+            div.innerHTML = `
+                <div class="entry-icon">✓</div>
+                <div class="entry-details">
+                    <div class="entry-name">${escapeHtml(entry.name)}</div>
+                    <div class="entry-meta">ID: ${escapeHtml(entry.studentId)} • ${entry.time}</div>
+                </div>
+            `;
+            sessionLogContainer.insertBefore(div, emptyState);
+        });
+
+        sessionCount.textContent = `${registrations.length} registered students`;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const studentId = document.getElementById('student_id').value.trim();
+        const name = document.getElementById('name').value.trim();
+
+        if (!studentId || !name) {
+            showToast('error', 'Validation Error', 'Please fill in all fields');
+            return;
+        }
+
+        // Check if face is already registered before submitting
+        if (currentFaceStatus === 'registered') {
+            showToast('error', 'Cannot Register', 'This face is already registered as ' + registeredName);
+            return;
+        }
+
+        // Show loading state
+        btnText.style.display = 'none';
+        btnLoading.style.display = 'inline-flex';
+        submitBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    name: name
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('success', 'Registration Successful', result.message);
+                addToRegistrations(name, studentId);
+                form.reset();
+            } else {
+                showToast('error', 'Registration Failed', result.message);
+            }
+        } catch (error) {
+            showToast('error', 'Network Error', 'Failed to connect to server');
+            console.error('Registration error:', error);
+        } finally {
+            // Reset button state
+            btnText.style.display = 'inline-flex';
+            btnLoading.style.display = 'none';
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Face status tracking for duplicate prevention
+    let currentFaceStatus = 'no_face';
+    let registeredName = '';
+    let statusCheckInterval = null;
+
+    async function checkFaceStatus() {
+        try {
+            const response = await fetch('/api/face_status');
+            const data = await response.json();
+
+            if (data.success) {
+                currentFaceStatus = data.status;
+                registeredName = data.name || '';
+
+                // Update button state based on face status
+                if (data.status === 'registered') {
+                    submitBtn.disabled = true;
+                    btnText.innerHTML = '🚫 Already Registered: ' + data.name;
+                    btnText.style.color = '#f87171';  // Red text
+                } else if (data.status === 'new') {
+                    submitBtn.disabled = false;
+                    btnText.innerHTML = '📷 Capture & Register';
+                    btnText.style.color = '';  // Reset color
+                } else if (data.status === 'scanning') {
+                    submitBtn.disabled = false;
+                    btnText.innerHTML = '📷 Capture & Register';
+                    btnText.style.color = '';
+                } else {
+                    // No face or unknown status
+                    submitBtn.disabled = false;
+                    btnText.innerHTML = '📷 Capture & Register';
+                    btnText.style.color = '';
+                }
+            }
+        } catch (error) {
+            console.error('Face status check error:', error);
+        }
+    }
+
+    // Start polling for face status (every 1 second)
+    statusCheckInterval = setInterval(checkFaceStatus, 1000);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+        }
+    });
+
+    // Load registrations from database on page load
+    fetchRecentRegistrations();
+</script>
+{% endblock %}

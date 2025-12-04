@@ -1,0 +1,7 @@
+flask
+opencv-python
+mediapipe
+deepface
+firebase-admin
+numpy
+tf-keras

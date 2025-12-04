@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Face Attendance{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Header -->
+    <header class="site-header">
+        <div class="header-content">
+            <a href="/" class="logo">
+                <div class="logo-icon">🎓</div>
+                <span class="logo-text">FACE ATTENDANCE</span>
+            </a>
+            <nav>
+                <a href="/" class="nav-link">Home</a>
+                <a href="/registration" class="nav-link">Register</a>
+                <a href="/attendance" class="nav-link">Attendance</a>
+                <a href="/admin" class="nav-link">📊 Admin</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="page-wrapper">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Script -->
+    <script>
+        function showToast(type, title, message, duration = 5000) {
+            const container = document.getElementById('toast-container');
+
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || '○'}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

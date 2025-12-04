@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+
+{% block title %}AI Face Attendance - Select Mode{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container">
+        <div class="text-center mb-4">
+            <h1 class="text-gradient">AI-Powered Face Attendance</h1>
+            <p class="text-muted mt-2">Select a mode to get started</p>
+        </div>
+
+        <div class="mode-grid">
+            <!-- Admin Mode Card -->
+            <a href="/registration" class="mode-card">
+                <div class="mode-icon">👤</div>
+                <h2 class="mode-title">Admin Mode</h2>
+                <p class="mode-desc">Register new students with face capture. Add students to the system for attendance
+                    tracking.</p>
+                <div class="mt-3">
+                    <span class="btn btn-primary">Enter Admin Panel</span>
+                </div>
+            </a>
+
+            <!-- Attendance Mode Card -->
+            <a href="/attendance" class="mode-card">
+                <div class="mode-icon">📸</div>
+                <h2 class="mode-title">Attendance Mode</h2>
+                <p class="mode-desc">Automated kiosk for touchless entry. Face recognition marks attendance in
+                    real-time.</p>
+                <div class="mt-3">
+                    <span class="btn btn-success">Start Kiosk</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="text-center mt-4 text-muted">
+            <p>🔒 Secure • ⚡ Fast • 🎯 Accurate</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
