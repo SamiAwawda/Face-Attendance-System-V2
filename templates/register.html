@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}Student Registration - Face Attendance{% endblock %}
+{% block title %}Admin Panel - Face Attendance{% endblock %}
 
 {% block head %}
 <style>
@@ -87,6 +87,61 @@
         color: var(--text-muted);
     }
 
+    .entry-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-delete-sm {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--accent-red);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition-fast);
+    }
+
+    .btn-delete-sm:hover {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: var(--accent-red);
+    }
+
+    .btn-delete-sm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .stats-header-actions {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: var(--bg-glass);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .btn-export {
+        background: linear-gradient(135deg, var(--accent-cyan), #00a8cc);
+        color: var(--bg-primary);
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: var(--transition-fast);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .btn-export:hover {
+        box-shadow: 0 4px 15px var(--accent-cyan-glow);
+        transform: translateY(-1px);
+    }
+
     @media (max-width: 1200px) {
         .registration-page {
             grid-template-columns: 1fr;
@@ -107,15 +162,43 @@
             min-height: 350px;
         }
     }
+
+    /* Dashboard header with logout */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .btn-logout {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--accent-red);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .btn-logout:hover {
+        background: rgba(239, 68, 68, 0.25);
+        border-color: var(--accent-red);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="main-content" style="align-items: flex-start; padding-top: 1.5rem;">
     <div class="container">
-        <div class="text-center mb-3">
-            <h1 class="text-gradient">Student Registration</h1>
-            <p class="text-muted mt-1">Capture face and register new students</p>
+        <!-- Header with Logout -->
+        <div class="dashboard-header mb-3">
+            <div class="text-center" style="flex: 1;">
+                <h1 class="text-gradient">Register Panel</h1>
+                <p class="text-muted mt-1">Register new students with face capture</p>
+            </div>
+            <a href="/logout" class="btn btn-logout">
+                🚪 Logout
+            </a>
         </div>
 
         <div class="registration-page">
@@ -187,13 +270,19 @@
                 </div>
             </div>
 
-            <!-- Recent Registrations Sidebar -->
+            <!-- Registration Statistics Sidebar -->
             <aside class="glass-card session-log">
                 <div class="sidebar-header">
                     <h3 class="sidebar-title">
-                        <span>📋</span>
-                        Recent Registrations
+                        <span>📊</span>
+                        Registration Statistics
                     </h3>
+                </div>
+
+                <div class="stats-header-actions">
+                    <a href="/api/export_students_excel" class="btn-export" id="export-stats-btn">
+                        📥 Export Statistics
+                    </a>
                 </div>
 
                 <div class="sidebar-body" id="session-log-container">
@@ -273,14 +362,20 @@
         sessionLogContainer.querySelectorAll('.session-entry').forEach(el => el.remove());
 
         // Add entries (show up to 20)
-        registrations.slice(0, 20).forEach(entry => {
+        registrations.slice(0, 20).forEach((entry, index) => {
             const div = document.createElement('div');
             div.className = 'session-entry';
+            div.id = `entry-${entry.studentId}`;
             div.innerHTML = `
                 <div class="entry-icon">✓</div>
                 <div class="entry-details">
                     <div class="entry-name">${escapeHtml(entry.name)}</div>
                     <div class="entry-meta">ID: ${escapeHtml(entry.studentId)} • ${entry.time}</div>
+                </div>
+                <div class="entry-actions">
+                    <button class="btn-delete-sm" onclick="deleteStudent('${escapeHtml(entry.studentId)}', '${escapeHtml(entry.name)}')" title="Delete student">
+                        🗑️
+                    </button>
                 </div>
             `;
             sessionLogContainer.insertBefore(div, emptyState);
@@ -290,9 +385,72 @@
     }
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Delete student with confirmation
+    async function deleteStudent(studentId, studentName) {
+        // Show confirmation dialog
+        const confirmed = confirm(`Are you sure you want to delete this student?\n\nName: ${studentName}\nID: ${studentId}\n\nThis action cannot be undone.`);
+
+        if (!confirmed) {
+            return;
+        }
+
+        // Find and disable the delete button
+        const entryRow = document.getElementById(`entry-${studentId}`);
+        const deleteBtn = entryRow?.querySelector('.btn-delete-sm');
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '⏳';
+        }
+
+        try {
+            const response = await fetch(`/api/delete_student/${encodeURIComponent(studentId)}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Remove from local array
+                registrations = registrations.filter(r => r.studentId !== studentId);
+
+                // Remove the row with animation
+                if (entryRow) {
+                    entryRow.style.opacity = '0';
+                    entryRow.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        entryRow.remove();
+                        // Update count
+                        sessionCount.textContent = `${registrations.length} registered students`;
+                        // Show empty state if no more entries
+                        if (registrations.length === 0) {
+                            emptyState.style.display = 'block';
+                        }
+                    }, 300);
+                }
+
+                showToast('success', 'Deleted', `${studentName} has been removed`);
+            } else {
+                showToast('error', 'Error', data.message || 'Failed to delete student');
+                // Re-enable button
+                if (deleteBtn) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerHTML = '🗑️';
+                }
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            showToast('error', 'Error', 'Failed to connect to server');
+            // Re-enable button
+            if (deleteBtn) {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '🗑️';
+            }
+        }
     }
 
     form.addEventListener('submit', async (e) => {

@@ -1,209 +1,584 @@
 {% extends "layout.html" %}
 
-{% block title %}Attendance Kiosk - Face Attendance{% endblock %}
+{% block title %}Daily Attendance Hub - Face Attendance{% endblock %}
 
 {% block head %}
 <style>
-    .site-header {
-        padding: 0.75rem 2rem;
+    .attendance-hub {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1.5rem;
     }
 
-    /* Compact attendance layout */
-    .attendance-layout {
+    .hub-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    /* Date Accordion Styles */
+    .date-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .date-section {
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .date-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        background: var(--bg-glass);
+        transition: var(--transition-fast);
+    }
+
+    .date-header:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .date-header.active {
+        background: rgba(16, 185, 129, 0.1);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .date-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .date-badge {
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .date-badge.today {
+        background: linear-gradient(135deg, var(--accent-green), #059669);
+        color: white;
+    }
+
+    .date-badge.past {
+        background: var(--bg-glass);
+        color: var(--text-secondary);
+    }
+
+    .date-stats {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .date-count {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.8rem;
+        background: rgba(239, 68, 68, 0.15);
+        border-radius: var(--radius-sm);
+        color: #f87171;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #f87171;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+    }
+
+    .expand-icon {
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+
+    .date-header.active .expand-icon {
+        transform: rotate(180deg);
+    }
+
+    /* Date Content */
+    .date-content {
+        display: none;
+        padding: 1.5rem;
+    }
+
+    .date-content.active {
+        display: block;
+    }
+
+    /* Today's Live Layout */
+    .live-layout {
         display: grid;
         grid-template-columns: 1fr 380px;
         gap: 1.5rem;
-        height: calc(100vh - 70px);
-        padding: 1rem;
     }
 
     .video-section {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
     }
 
     .video-wrapper {
         width: 100%;
         max-width: 640px;
-        margin: 0 auto;
     }
 
     .video-container {
-        width: 100%;
         border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: #000;
     }
 
     .video-feed {
         width: 100%;
         height: auto;
         max-height: 480px;
-        object-fit: contain;
         display: block;
+    }
+
+    /* Live Sidebar */
+    .live-sidebar {
+        background: var(--bg-glass);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border-color);
+        max-height: 500px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    .sidebar-footer {
+        padding: 0.75rem 1rem;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-glass);
+    }
+
+    .log-entry {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(16, 185, 129, 0.08);
+        border-radius: var(--radius-md);
+        margin-bottom: 0.5rem;
+        border-left: 3px solid var(--accent-green);
+    }
+
+    .log-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--accent-green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .log-details {
+        flex: 1;
+    }
+
+    .log-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .log-time {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    /* History Table */
+    .history-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .history-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-export {
+        background: linear-gradient(135deg, var(--accent-cyan), #00a8cc);
+        color: var(--bg-primary);
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: var(--transition-fast);
+    }
+
+    .btn-export:hover {
+        box-shadow: 0 4px 15px var(--accent-cyan-glow);
+        transform: translateY(-1px);
+    }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .history-table th,
+    .history-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-table th {
+        background: var(--bg-glass);
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .history-table tr:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+
+    .empty-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .live-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .live-sidebar {
+            max-height: 300px;
+        }
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="attendance-layout">
-    <!-- Video Section (Smaller, centered) -->
-    <div class="video-section">
-        <div class="video-wrapper">
-            <div class="video-container">
-                <img src="/video_feed/attendance" alt="Attendance Camera Feed" class="video-feed" id="video-feed">
-                <div class="video-overlay">
-                    <div class="video-status">
-                        <span class="status-dot"></span>
-                        <span>Live Scanning</span>
-                    </div>
-                    <div class="video-status" id="stats-display">
-                        <span>Loading stats...</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="attendance-hub">
+    <div class="hub-header">
+        <h1 class="text-gradient">Daily Attendance Hub</h1>
+        <p class="text-muted mt-1">View live attendance and browse history by date</p>
     </div>
 
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <h3 class="sidebar-title">
-                <span>📋</span>
-                Recent Entries
-            </h3>
+    <div class="date-accordion" id="date-accordion">
+        <!-- Dates will be populated by JavaScript -->
+        <div class="empty-state" id="loading-state">
+            <div class="spinner" style="margin: 0 auto 1rem;"></div>
+            <p>Loading attendance data...</p>
         </div>
-
-        <div class="sidebar-body" id="logs-container">
-            <div class="empty-state" id="empty-state">
-                <div class="empty-icon">👀</div>
-                <p>Waiting for entries...</p>
-                <p style="font-size: 0.8rem; margin-top: 0.5rem;">
-                    Face the camera to mark attendance
-                </p>
-            </div>
-        </div>
-
-        <div class="sidebar-footer">
-            <div id="entry-count" class="text-muted" style="font-size: 0.875rem;">
-                0 entries this session
-            </div>
-        </div>
-    </aside>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    const logsContainer = document.getElementById('logs-container');
-    const emptyState = document.getElementById('empty-state');
-    const entryCount = document.getElementById('entry-count');
-    const statsDisplay = document.getElementById('stats-display');
+    const accordion = document.getElementById('date-accordion');
+    const loadingState = document.getElementById('loading-state');
 
+    let attendanceData = {};
+    let todayDate = '';
     let currentLogs = [];
 
-    // Fetch recent logs every 2 seconds
-    async function fetchLogs() {
+    // Get today's date in YYYY-MM-DD format
+    function getTodayDate() {
+        const now = new Date();
+        return now.toISOString().split('T')[0];
+    }
+
+    // Format date for display
+    function formatDate(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00');
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        return date.toLocaleDateString('en-US', options);
+    }
+
+    // Fetch all attendance grouped by date
+    async function fetchAttendanceByDate() {
+        try {
+            const response = await fetch('/api/attendance_by_date');
+            const data = await response.json();
+
+            if (data.success) {
+                todayDate = getTodayDate();
+                attendanceData = data.dates || {};
+
+                // Ensure today exists
+                if (!attendanceData[todayDate]) {
+                    attendanceData[todayDate] = [];
+                }
+
+                renderAccordion();
+            } else {
+                loadingState.innerHTML = `<div class="empty-icon">⚠️</div><p>${data.message}</p>`;
+            }
+        } catch (error) {
+            console.error('Error fetching attendance:', error);
+            loadingState.innerHTML = '<div class="empty-icon">⚠️</div><p>Failed to load data</p>';
+        }
+    }
+
+    // Render the accordion
+    function renderAccordion() {
+        loadingState.style.display = 'none';
+
+        // Sort dates newest first
+        const sortedDates = Object.keys(attendanceData).sort((a, b) => b.localeCompare(a));
+
+        // Clear existing sections (except loading state)
+        accordion.querySelectorAll('.date-section').forEach(el => el.remove());
+
+        sortedDates.forEach((date, index) => {
+            const isToday = date === todayDate;
+            const entries = attendanceData[date] || [];
+
+            const section = document.createElement('div');
+            section.className = 'date-section';
+            section.id = `section-${date}`;
+
+            section.innerHTML = `
+                <div class="date-header ${index === 0 ? 'active' : ''}" onclick="toggleSection('${date}')">
+                    <div class="date-info">
+                        <span class="date-badge ${isToday ? 'today' : 'past'}">
+                            ${isToday ? '📅 Today' : formatDate(date)}
+                        </span>
+                        ${isToday ? '<span class="live-indicator"><span class="live-dot"></span>Live</span>' : ''}
+                    </div>
+                    <div class="date-stats">
+                        <span class="date-count">${entries.length} entries</span>
+                        <span class="expand-icon">▼</span>
+                    </div>
+                </div>
+                <div class="date-content ${index === 0 ? 'active' : ''}" id="content-${date}">
+                    ${isToday ? renderTodayContent() : renderHistoryContent(date, entries)}
+                </div>
+            `;
+
+            accordion.appendChild(section);
+        });
+
+        // If today is open, start live updates
+        if (sortedDates[0] === todayDate) {
+            startLiveUpdates();
+        }
+    }
+
+    // Render today's live content
+    function renderTodayContent() {
+        return `
+            <div class="live-layout">
+                <div class="video-section">
+                    <div class="video-wrapper">
+                        <div class="video-container">
+                            <img src="/video_feed/attendance" alt="Live Camera" class="video-feed" id="video-feed">
+                            <div class="video-overlay">
+                                <div class="video-status">
+                                    <span class="status-dot"></span>
+                                    <span>Live Scanning</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="live-sidebar">
+                    <div class="sidebar-header">
+                        <h3 style="margin: 0; font-size: 1rem;">📋 Recent Entries</h3>
+                    </div>
+                    <div class="sidebar-body" id="live-logs">
+                        <div class="empty-state" id="live-empty">
+                            <div class="empty-icon">👀</div>
+                            <p>Waiting for entries...</p>
+                        </div>
+                    </div>
+                    <div class="sidebar-footer">
+                        <span id="live-count" class="text-muted">0 entries today</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Render history content
+    function renderHistoryContent(date, entries) {
+        if (entries.length === 0) {
+            return `
+                <div class="history-section">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No attendance recorded on this day</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const rows = entries.map((entry, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${escapeHtml(entry.name)}</td>
+                <td>${escapeHtml(entry.student_id)}</td>
+                <td>${entry.time}</td>
+            </tr>
+        `).join('');
+
+        return `
+            <div class="history-section">
+                <div class="history-actions">
+                    <a href="/api/export_attendance_excel?date=${date}" class="btn-export">
+                        📥 Export Excel
+                    </a>
+                </div>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Student Name</th>
+                            <th>Student ID</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Toggle accordion section
+    function toggleSection(date) {
+        const header = document.querySelector(`#section-${date} .date-header`);
+        const content = document.getElementById(`content-${date}`);
+
+        // Close all others
+        document.querySelectorAll('.date-header').forEach(h => h.classList.remove('active'));
+        document.querySelectorAll('.date-content').forEach(c => c.classList.remove('active'));
+
+        // Open clicked
+        header.classList.add('active');
+        content.classList.add('active');
+
+        // Start/stop live updates
+        if (date === todayDate) {
+            startLiveUpdates();
+        }
+    }
+
+    // Live updates for today
+    let liveInterval = null;
+
+    function startLiveUpdates() {
+        if (liveInterval) clearInterval(liveInterval);
+        fetchLiveLogs();
+        liveInterval = setInterval(fetchLiveLogs, 2000);
+    }
+
+    async function fetchLiveLogs() {
         try {
             const response = await fetch('/api/recent_logs');
             const data = await response.json();
 
             if (data.success && data.logs) {
-                updateLogs(data.logs);
+                updateLiveLogs(data.logs);
             }
         } catch (error) {
-            console.error('Error fetching logs:', error);
+            console.error('Error fetching live logs:', error);
         }
     }
 
-    function updateLogs(logs) {
-        // Check if logs have changed
-        if (JSON.stringify(logs) === JSON.stringify(currentLogs)) {
-            return;
-        }
+    function updateLiveLogs(logs) {
+        const container = document.getElementById('live-logs');
+        const emptyState = document.getElementById('live-empty');
+        const countEl = document.getElementById('live-count');
 
-        currentLogs = logs;
+        if (!container) return;
 
         if (logs.length === 0) {
-            emptyState.style.display = 'block';
-            // Keep only empty state
-            logsContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
-            entryCount.textContent = '0 entries this session';
+            if (emptyState) emptyState.style.display = 'block';
+            container.querySelectorAll('.log-entry').forEach(el => el.remove());
+            if (countEl) countEl.textContent = '0 entries today';
             return;
         }
 
-        emptyState.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'none';
+        container.querySelectorAll('.log-entry').forEach(el => el.remove());
 
-        // Remove old entries
-        logsContainer.querySelectorAll('.log-entry').forEach(el => el.remove());
-
-        // Add new entries
-        logs.forEach((log, index) => {
-            const entry = createLogEntry(log, index === 0 && logs.length > currentLogs.length);
-            logsContainer.insertBefore(entry, logsContainer.firstChild);
+        logs.forEach(log => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <div class="log-icon">✓</div>
+                <div class="log-details">
+                    <div class="log-name">${escapeHtml(log.name)}</div>
+                    <div class="log-time">${log.time}</div>
+                </div>
+            `;
+            container.insertBefore(entry, container.firstChild);
         });
 
-        // Re-add empty state at the end (hidden)
-        logsContainer.appendChild(emptyState);
-
-        entryCount.textContent = `${logs.length} entries this session`;
-    }
-
-    function createLogEntry(log, isNew) {
-        const entry = document.createElement('div');
-        entry.className = `log-entry ${log.status === 'already_marked' ? 'already-marked' : 'success'}`;
-
-        if (isNew) {
-            entry.style.animation = 'slideIn 0.3s ease';
-        }
-
-        const icon = log.status === 'already_marked' ? '🔄' : '✓';
-        const iconClass = log.status === 'already_marked' ? 'already-marked' : 'success';
-
-        entry.innerHTML = `
-            <div class="log-icon ${iconClass}">${icon}</div>
-            <div class="log-details">
-                <div class="log-name">${escapeHtml(log.name)}</div>
-                <div class="log-time">${log.time}</div>
-            </div>
-        `;
-
-        return entry;
+        if (emptyState) container.appendChild(emptyState);
+        if (countEl) countEl.textContent = `${logs.length} entries today`;
     }
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    // Fetch stats
-    async function fetchStats() {
-        try {
-            const response = await fetch('/api/stats');
-            const data = await response.json();
-
-            if (data.success && data.stats) {
-                statsDisplay.innerHTML = `
-                    📊 ${data.stats.total_students} Students | 
-                    📅 ${data.stats.today_entries} Today
-                `;
-            }
-        } catch (error) {
-            statsDisplay.innerHTML = '<span>Stats unavailable</span>';
-        }
-    }
-
-    // Initial fetch
-    fetchLogs();
-    fetchStats();
-
-    // Poll every 2 seconds
-    setInterval(fetchLogs, 2000);
-    setInterval(fetchStats, 30000);
-
-    // Show welcome toast
-    setTimeout(() => {
-        showToast('success', 'Kiosk Active', 'Face recognition is now running. Look at the camera to mark attendance.');
-    }, 1000);
+    // Initial load
+    fetchAttendanceByDate();
 </script>
 {% endblock %}

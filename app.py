@@ -3,10 +3,11 @@ AI-Powered Face Attendance System
 Flask Application with Firebase Integration
 """
 
-from flask import Flask, render_template, Response, request, jsonify, session
+from flask import Flask, render_template, Response, request, jsonify, session, redirect, url_for
 from camera_engine import get_engine, CameraEngine
 from datetime import datetime, timedelta
 from threading import Lock
+from functools import wraps
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
@@ -15,6 +16,19 @@ import json
 # Initialize Flask
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+
+# Admin password (simple authentication)
+ADMIN_PASSWORD = "admin123"
+
+
+def login_required(f):
+    """Decorator to require admin login for protected routes."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Firebase initialization
 db = None
@@ -178,9 +192,35 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/registration')
-def registration():
-    """Admin registration page."""
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Admin login page."""
+    if session.get('admin_logged_in'):
+        return redirect(url_for('register'))
+    
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect(url_for('register'))
+        else:
+            error = 'Invalid password. Please try again.'
+    
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    """Logout and clear session."""
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('index'))
+
+
+@app.route('/register')
+@login_required
+def register():
+    """Student Registration Page (requires login)."""
     engine = get_engine()
     if not engine.is_running:
         engine.start()
@@ -191,7 +231,7 @@ def registration():
     except Exception as e:
         print(f"Warning: Could not load faces for registration: {e}")
     
-    return render_template('registration.html')
+    return render_template('register.html')
 
 
 @app.route('/attendance')
@@ -456,8 +496,9 @@ def api_stats():
 
 
 @app.route('/admin')
+@login_required
 def admin_dashboard():
-    """Admin dashboard with daily attendance log."""
+    """Admin dashboard with daily attendance log (requires login)."""
     today = datetime.now().strftime('%A, %B %d, %Y')
     return render_template('admin.html', today_date=today)
 
@@ -561,6 +602,324 @@ def api_export_csv():
         return response
         
     except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/export_students_excel')
+@login_required
+def api_export_students_excel():
+    """Export all registered students to Excel file."""
+    if not firebase_initialized or db is None:
+        return jsonify({'success': False, 'message': 'Database not available'}), 500
+    
+    try:
+        from openpyxl import Workbook
+        from io import BytesIO
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Registered Students"
+        
+        # Header row with styling
+        headers = ['#', 'Student Name', 'Student ID', 'Registration Date']
+        ws.append(headers)
+        
+        # Style headers
+        for col in range(1, 5):
+            cell = ws.cell(row=1, column=col)
+            cell.font = cell.font.copy(bold=True)
+        
+        # Fetch all students
+        students_ref = db.collection('students')
+        docs = students_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream()
+        
+        row_num = 1
+        for doc in docs:
+            data = doc.to_dict()
+            created_at = data.get('created_at')
+            
+            # Handle Firestore timestamp
+            if hasattr(created_at, 'timestamp'):
+                time_str = datetime.fromtimestamp(created_at.timestamp()).strftime('%Y-%m-%d %H:%M:%S')
+            elif isinstance(created_at, datetime):
+                time_str = created_at.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                time_str = str(created_at) if created_at else 'N/A'
+            
+            ws.append([
+                row_num,
+                data.get('name', 'Unknown'),
+                data.get('student_id', 'N/A'),
+                time_str
+            ])
+            row_num += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 5
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 22
+        
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        
+        return Response(
+            output.getvalue(),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f'attachment; filename=students_{today_str}.xlsx'
+            }
+        )
+        
+    except ImportError:
+        return jsonify({
+            'success': False, 
+            'message': 'openpyxl library not installed. Run: pip install openpyxl'
+        }), 500
+    except Exception as e:
+        print(f"Export error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/delete_student/<student_id>', methods=['DELETE'])
+@login_required
+def api_delete_student(student_id):
+    """Delete a student from the database."""
+    if not firebase_initialized or db is None:
+        return jsonify({'success': False, 'message': 'Database not available'}), 500
+    
+    try:
+        students_ref = db.collection('students')
+        
+        # Find the student document by student_id
+        docs = students_ref.where('student_id', '==', student_id).stream()
+        
+        deleted = False
+        for doc in docs:
+            doc.reference.delete()
+            deleted = True
+        
+        if deleted:
+            # Reload known faces to remove from cache
+            try:
+                load_known_faces()
+            except Exception as e:
+                print(f"Warning: Could not reload faces after deletion: {e}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Student {student_id} deleted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Student {student_id} not found'
+            }), 404
+            
+    except Exception as e:
+        print(f"Delete error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/all_students')
+@login_required
+def api_all_students():
+    """Get all registered students for admin panel."""
+    if not firebase_initialized or db is None:
+        return jsonify({
+            'success': False,
+            'message': 'Database not available',
+            'students': []
+        })
+    
+    try:
+        students_ref = db.collection('students')
+        docs = students_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream()
+        
+        students = []
+        for doc in docs:
+            data = doc.to_dict()
+            created_at = data.get('created_at')
+            
+            # Handle Firestore timestamp
+            if hasattr(created_at, 'timestamp'):
+                time_str = datetime.fromtimestamp(created_at.timestamp()).strftime('%Y-%m-%d %H:%M:%S')
+            elif isinstance(created_at, datetime):
+                time_str = created_at.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                time_str = str(created_at) if created_at else 'N/A'
+            
+            students.append({
+                'student_id': data.get('student_id', 'N/A'),
+                'name': data.get('name', 'Unknown'),
+                'registered_at': time_str
+            })
+        
+        return jsonify({
+            'success': True,
+            'students': students,
+            'count': len(students)
+        })
+        
+    except Exception as e:
+        print(f"All students error: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'students': []
+        })
+
+
+@app.route('/api/attendance_by_date')
+def api_attendance_by_date():
+    """Get all attendance records grouped by date."""
+    if not firebase_initialized or db is None:
+        return jsonify({'success': False, 'message': 'Database not available'}), 500
+    
+    try:
+        attendance_ref = db.collection('attendance')
+        docs = attendance_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).stream()
+        
+        # Group by date
+        dates = {}
+        
+        for doc in docs:
+            data = doc.to_dict()
+            timestamp = data.get('timestamp')
+            
+            # Get date and time from timestamp
+            if hasattr(timestamp, 'timestamp'):
+                dt = datetime.fromtimestamp(timestamp.timestamp())
+            elif isinstance(timestamp, datetime):
+                dt = timestamp
+            else:
+                continue  # Skip if no valid timestamp
+            
+            date_str = dt.strftime('%Y-%m-%d')
+            time_str = dt.strftime('%H:%M:%S')
+            
+            if date_str not in dates:
+                dates[date_str] = []
+            
+            dates[date_str].append({
+                'name': data.get('name', 'Unknown'),
+                'student_id': data.get('student_id', 'N/A'),
+                'time': time_str
+            })
+        
+        return jsonify({
+            'success': True,
+            'dates': dates
+        })
+        
+    except Exception as e:
+        print(f"Attendance by date error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/export_attendance_excel')
+def api_export_attendance_excel():
+    """Export attendance for a specific date to Excel file."""
+    if not firebase_initialized or db is None:
+        return jsonify({'success': False, 'message': 'Database not available'}), 500
+    
+    try:
+        from openpyxl import Workbook
+        from io import BytesIO
+        
+        # Get date parameter
+        date_str = request.args.get('date')
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # Parse the date
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d')
+            next_date = target_date + timedelta(days=1)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format'}), 400
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Attendance {date_str}"
+        
+        # Header row
+        headers = ['#', 'Student Name', 'Student ID', 'Time']
+        ws.append(headers)
+        
+        # Style headers
+        for col in range(1, 5):
+            cell = ws.cell(row=1, column=col)
+            cell.font = cell.font.copy(bold=True)
+        
+        # Query attendance for that day
+        attendance_ref = db.collection('attendance')
+        docs = attendance_ref.where(
+            'timestamp', '>=', target_date
+        ).where(
+            'timestamp', '<', next_date
+        ).order_by('timestamp').stream()
+        
+        row_num = 1
+        for doc in docs:
+            data = doc.to_dict()
+            timestamp = data.get('timestamp')
+            
+            if hasattr(timestamp, 'timestamp'):
+                time_str = datetime.fromtimestamp(timestamp.timestamp()).strftime('%H:%M:%S')
+            elif isinstance(timestamp, datetime):
+                time_str = timestamp.strftime('%H:%M:%S')
+            else:
+                time_str = 'N/A'
+            
+            ws.append([
+                row_num,
+                data.get('name', 'Unknown'),
+                data.get('student_id', 'N/A'),
+                time_str
+            ])
+            row_num += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 5
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 12
+        
+        # Save to BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        return Response(
+            output.getvalue(),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f'attachment; filename=attendance_{date_str}.xlsx'
+            }
+        )
+        
+    except ImportError:
+        return jsonify({
+            'success': False, 
+            'message': 'openpyxl library not installed'
+        }), 500
+    except Exception as e:
+        print(f"Export attendance error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

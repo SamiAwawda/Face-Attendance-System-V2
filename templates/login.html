@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}Admin Login - Face Attendance{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container" style="max-width: 440px;">
+        <div class="glass-card">
+            <div class="card-header text-center">
+                <div class="login-icon">🔐</div>
+                <h2 class="text-gradient">Admin Login</h2>
+                <p class="text-muted mt-1">Enter password to access the admin panel</p>
+            </div>
+            <div class="card-body">
+                <form id="login-form" method="POST" action="/login">
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input 
+                            type="password" 
+                            name="password" 
+                            class="form-input" 
+                            id="password-input"
+                            placeholder="Enter admin password" 
+                            required 
+                            autocomplete="current-password"
+                        >
+                    </div>
+
+                    {% if error %}
+                    <div class="error-message">
+                        <span class="error-icon">⚠️</span>
+                        {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
+                        <span class="btn-text">🔓 Login</span>
+                        <div class="spinner" style="display: none;"></div>
+                    </button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <a href="/" class="back-link">← Back to Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        background: var(--bg-glass);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        border: 2px solid var(--border-color);
+    }
+
+    .error-message {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        color: var(--accent-red);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.95rem;
+    }
+
+    .error-icon {
+        font-size: 1.25rem;
+    }
+
+    .back-link {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: var(--transition-fast);
+    }
+
+    .back-link:hover {
+        color: var(--accent-cyan);
+    }
+
+    #login-form .btn {
+        margin-top: 0.5rem;
+    }
+
+    #login-btn .spinner {
+        width: 20px;
+        height: 20px;
+        border-width: 2px;
+        margin-left: 0.5rem;
+    }
+
+    #login-btn.loading .btn-text {
+        opacity: 0.7;
+    }
+
+    #login-btn.loading .spinner {
+        display: inline-block !important;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const form = document.getElementById('login-form');
+    const btn = document.getElementById('login-btn');
+
+    form.addEventListener('submit', function() {
+        btn.classList.add('loading');
+        btn.disabled = true;
+    });
+
+    // Focus password input on load
+    document.getElementById('password-input').focus();
+</script>
+{% endblock %}

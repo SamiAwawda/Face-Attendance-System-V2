@@ -5,3 +5,4 @@ deepface
 firebase-admin
 numpy
 tf-keras
+openpyxl
